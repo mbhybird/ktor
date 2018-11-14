@@ -3,7 +3,7 @@ kotlin {
         configure([macosX64]) {
             compilations.main.cinterops {
                 libcurl {
-                    defFile 'unix/src/io/c_interop/libcurl.def'
+                    defFile 'posix/src/io/c_interop/libcurl.def'
                     includeDirs.headerFilterOnly '/opt/local/include', '/usr/local/include'
                 }
             }

@@ -19,9 +19,7 @@ import platform.posix.size_t
 import platform.posix.memcpy
 import platform.posix.usleep
 
-import io.ktor.client.engine.curl.temporary.*
-
-class CurlClientEngine(override val config: HttpClientEngineConfig) : HttpClientEngine {
+class CurlClientEngine(override val config: CurlClientEngineConfig) : HttpClientEngine {
 
     override val dispatcher: CoroutineDispatcher = Dispatchers.Unconfined
 
@@ -31,17 +29,12 @@ class CurlClientEngine(override val config: HttpClientEngineConfig) : HttpClient
 
     init {
         curlProcessor.start()
-        //launch(coroutineContext) {
-        //    println("launching curlProcessor iteration")
-        //    loop(curlProcessor)
-        //}
+        launch(coroutineContext) {
+            loop(curlProcessor)
+        }
     }
 
-    // TODO: What we really want to do is to be able to reschedule next iteration after a delay.
-    private val eventLoopKey = anEventLoop.subscribePeriodic { eventLoopIteration(curlProcessor) }
-
     override fun close() {
-        anEventLoop.removePeriodic(eventLoopKey)
         curlProcessor.close()
         coroutineContext.cancel()
     }
@@ -96,14 +89,14 @@ class CurlClientEngine(override val config: HttpClientEngineConfig) : HttpClient
 
     private fun eventLoopIteration(curlProcessor: CurlProcessor) {
         val key = ListenerKey()
-        curlProcessor.requestJob(CurlRequest(emptySet(), key))
+        curlProcessor.requestJob(CurlRequest(emptyList(), key))
         curlProcessor.addListener(key, listener)
-        curlProcessor.check(100)
+        curlProcessor.check(config.workerResponseStandBy)
     }
 
     private suspend fun loop(curlProcessor: CurlProcessor) {
         eventLoopIteration(curlProcessor)
-        delay(300)
+        delay(config.workerNextIterationDelay)
         loop(curlProcessor)
     }
 }

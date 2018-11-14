@@ -10,7 +10,7 @@ kotlin {
         // So we declare it in ktor-client:ktor-client-curl build gradle.
             compilations.main.cinterops {
                 libcurl {
-                    defFile 'ktor-client/ktor-client-curl/unix/src/io/c_interop/libcurl.def'
+                    defFile 'ktor-client/ktor-client-curl/posix/src/io/c_interop/libcurl.def'
                     includeDirs.headerFilterOnly '/opt/local/include', '/usr/local/include'
                 }
             }
@@ -35,18 +35,18 @@ kotlin {
         }
         darwinTest { dependsOn darwinMain }
 
-        unixMain {
-            kotlin.srcDir 'unixMain'
+        posixMain {
+            kotlin.srcDir 'posixMain'
             dependsOn nativeMain
             dependsOn commonMain
         }
-        unixTest { dependsOn unixMain }
+        posixTest { dependsOn posixMain }
 
         configure([iosArm32Main, iosArm64Main, iosX64Main, macosX64Main]) {
             dependsOn darwinMain
         }
         configure([macosX64Main, linuxX64Main, mingwX64Main]) {
-            dependsOn unixMain
+            dependsOn posixMain
         }
     }
 }

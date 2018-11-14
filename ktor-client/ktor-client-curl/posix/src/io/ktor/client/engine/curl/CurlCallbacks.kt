@@ -21,6 +21,7 @@ internal fun writeCallback(buffer: CPointer<ByteVar>?, size: size_t, nitems: siz
     return space.toLong()
 }
 
+// TODO: Use BytePacket.
 internal class SimpleByteArrayStream(
     val data: ByteArray,
     var position: Int = 0
@@ -36,10 +37,10 @@ internal fun readCallback(buffer: CPointer<ByteVar>, size: size_t, nitems: size_
         return 0
     }
 
-    val actual = minOf(stream.data.size - stream.position, requested.toInt())
+    val consumed = minOf(stream.data.size - stream.position, requested.toInt())
 
-    stream.data.copyToBuffer(buffer, actual.toULong(), stream.position)
-    stream.position += actual
+    stream.data.copyToBuffer(buffer, consumed.toULong(), stream.position)
+    stream.position += consumed
 
-    return actual.toLong()
+    return consumed.toLong()
 }

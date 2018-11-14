@@ -7,33 +7,12 @@ import platform.posix.*
 import libcurl.*
 import libcurl.CURLMsg.*
 
-// This class is frozen to pass data between the curl driver and curl worker threads.
-internal class CurlRequestData(
-    val url: String,
-    val method: String,
-    val headers: CPointer<curl_slist>?,
-    val content: ByteArray?
-    // val attributes: Attributes
-)
-// This class is frozen to pass data between the curl worker and curl driver threads.
-internal class CurlResponseData(
-    val request: CurlRequestData,
-    val chunks: MutableList<ByteArray> = mutableListOf(),
-    val headers: MutableList<ByteArray> = mutableListOf()
-) {
-    /* lateinit */ var status: Int = 0
-    /* lateinit */ var version: UInt = 0u
-}
-
 // The whole this class is executed in the worker.
-internal class CurlState(val existingMultiHandle: COpaquePointer? = null) {
-    private val multiHandle = existingMultiHandle ?: setupMultiHandle()
+internal class CurlState(val existingMultiHandle: MultiHandle? = null) {
+    private val multiHandle: MultiHandle = existingMultiHandle ?: setupMultiHandle()
 
-    fun setupMultiHandle(): COpaquePointer? {
-        val handle = curl_multi_init() ?: throw CurlEngineCreationException("Could not initialilze libcurl multi handle")
-
-        return handle
-    }
+    private fun setupMultiHandle(): MultiHandle
+        = curl_multi_init() ?: throw CurlEngineCreationException("Could not initialilze libcurl multi handle")
 
     fun close() {
         // Make sure all easy handles have been removed from the multi handle
@@ -41,7 +20,7 @@ internal class CurlState(val existingMultiHandle: COpaquePointer? = null) {
             .code()
     }
 
-    fun setupUploadContent(easyHandle: COpaquePointer, content: ByteArray?) {
+    private fun setupUploadContent(easyHandle: EasyHandle, content: ByteArray?) {
         if (content == null) return
 
         val stream = SimpleByteArrayStream(content)
@@ -54,7 +33,7 @@ internal class CurlState(val existingMultiHandle: COpaquePointer? = null) {
         }
     }
 
-    fun setupMethod(easyHandle: COpaquePointer, method: String) = when (method) {
+    private fun setupMethod(easyHandle: EasyHandle, method: String) = when (method) {
         "GET"
         -> easyHandle.option(CURLOPT_HTTPGET, 1L)
         "PUT"
@@ -91,7 +70,7 @@ internal class CurlState(val existingMultiHandle: COpaquePointer? = null) {
             .code()
     }
 
-    fun readResponseDataFromEasyHandle(easyHandle: COpaquePointer): CurlResponseData = memScoped {
+    private fun readResponseDataFromEasyHandle(easyHandle: EasyHandle): CurlResponseData = memScoped {
 
         val responseDataRef = alloc<COpaquePointerVar>()
         val httpProtocolVersion = alloc<LongVar>()
@@ -113,8 +92,8 @@ internal class CurlState(val existingMultiHandle: COpaquePointer? = null) {
         responseData
     }
 
-    fun pickCompletedTransfers(): Set<CurlResponseData> {
-        val responseDataList = mutableSetOf<CurlResponseData>()
+    private fun pickCompletedTransfers(): List<CurlResponseData> {
+        val responseDataList = mutableListOf<CurlResponseData>()
         memScoped {
             do {
                 val messagesLeft = alloc<IntVar>()
@@ -133,10 +112,10 @@ internal class CurlState(val existingMultiHandle: COpaquePointer? = null) {
         return responseDataList
     }
 
-    fun singleIteration(timeoutMillisec: Int): Set<CurlResponseData> {
+    fun singleIteration(timeoutMillisec: Int): List<CurlResponseData> {
         memScoped {
             val transfersRunning = alloc<IntVar>()
-            val activeFds = alloc<IntVar>()
+            val activeFileDescriptors = alloc<IntVar>()
             var repeats = 0
 
             // This basicly follows the curl_multi_wait man page.
@@ -144,18 +123,18 @@ internal class CurlState(val existingMultiHandle: COpaquePointer? = null) {
                 curl_multi_perform(multiHandle, transfersRunning.ptr)
                     .code() // TODO: may be do something less damaging here.
 
-                curl_multi_wait(multiHandle, null, 0, timeoutMillisec, activeFds.ptr)
+                curl_multi_wait(multiHandle, null, 0, timeoutMillisec, activeFileDescriptors.ptr)
                     .code()
 
-                /* 'activeFds.value' being zero means either a timeout or no file descriptors to
+                /* 'activeFileDescriptors.value' being zero means either a timeout or no file descriptors to
                    wait for. Try timeout on first occurrence, then assume no file
                    descriptors and no file descriptors to wait for means wait for [timeoutMillisec]
                    milliseconds. */
 
-                if (activeFds.value == 0) {
+                if (activeFileDescriptors.value == 0) {
                     repeats++; /* count number of repeated zero numfds */
                     if (repeats > 1) {
-                        return emptySet()
+                        return emptyList()
                     }
                 } else
                     repeats = 0;

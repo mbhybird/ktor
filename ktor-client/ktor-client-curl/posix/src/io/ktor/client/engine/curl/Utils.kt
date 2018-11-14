@@ -32,17 +32,6 @@ internal inline fun <T: Any> T.stableCPointer() = StableRef.create(this).asCPoin
 
 internal inline fun <reified T: Any> COpaquePointer.fromCPointer() = this.asStableRef<T>().get()
 
-internal fun headersToCurl(request: HttpRequest): CPointer<curl_slist>? {
-    var cList: CPointer<curl_slist>? = null
-
-    mergeHeaders(request.headers, request.content) { key, value ->
-        val header = "$key: $value"
-        curl_slist_append(cList, header)
-    }
-
-    return cList
-}
-
 internal fun List<ByteArray>.parseResponseHeaders(charset: Charset = Charsets.UTF_8): Headers {
     val headers = mutableMapOf<String, MutableList<String>>()
     this.forEach { byteArray ->
@@ -69,7 +58,7 @@ internal fun HttpRequest.toCurlRequest(): CurlRequest {
         content = content.toCurlByteArray()
     )
 
-    return CurlRequest(setOf(curlRequestData), ListenerKey().freeze())
+    return CurlRequest(listOf(curlRequestData), ListenerKey().freeze())
 }
 
 internal fun OutgoingContent.toCurlByteArray(): ByteArray? {

@@ -21,11 +21,3 @@ class CurlHttpResponse(
 
     override val responseTime: GMTDate = GMTDate()
 }
-
-fun UInt.fromCurl(): HttpProtocolVersion = when (this) {
-    CURL_HTTP_VERSION_1_0 -> HttpProtocolVersion.HTTP_1_0
-    CURL_HTTP_VERSION_1_1 -> HttpProtocolVersion.HTTP_1_1
-    CURL_HTTP_VERSION_2_0 -> HttpProtocolVersion.HTTP_2_0
-    CURL_HTTP_VERSION_2_PRIOR_KNOWLEDGE -> HttpProtocolVersion.HTTP_2_0
-    else -> throw CurlUnsupportedProtocolException(this)
-}
